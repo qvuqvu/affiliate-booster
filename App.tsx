@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import Header from './components/Header';
-import InputForm from './components/InputForm';
-import OutputDisplay from './components/OutputDisplay';
-import { generateViralThread, generateImage } from './services/geminiService';
-import type { BatchResult, ProductInput, ToneOption, PlatformOption } from './types';
+import Header from './components/Header.tsx';
+import InputForm from './components/InputForm.tsx';
+import OutputDisplay from './components/OutputDisplay.tsx';
+import { generateViralThread, generateImage } from './services/geminiService.ts';
+import type { BatchResult, ProductInput, ToneOption, PlatformOption } from './types.ts';
 
 const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
