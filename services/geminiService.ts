@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { GeneratedContent, PlatformOption } from '../types.tsx';
+import { GeneratedContent, PlatformOption } from '../types.ts';
 
 const getResponseSchema = () => ({
   type: Type.ARRAY,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BatchResult, Template, PlatformOption } from '../types.tsx';
+import { BatchResult, Template, PlatformOption } from '../types.ts';
 import CopyButton from './CopyButton.tsx';
 
 const getPlatformTitle = (platform: PlatformOption | null) => {

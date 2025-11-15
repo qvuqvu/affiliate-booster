@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { ProductInput, ToneOption, PlatformOption } from '../types.tsx';
-import { TONE_OPTIONS, PLATFORM_OPTIONS } from '../types.tsx';
+import type { ProductInput, ToneOption, PlatformOption } from '../types.ts';
+import { TONE_OPTIONS, PLATFORM_OPTIONS } from '../types.ts';
 
 interface InputFormProps {
     onSubmit: (products: ProductInput[], tones: ToneOption[], shouldGenerateImage: boolean, platform: PlatformOption, temperature: number) => void;
