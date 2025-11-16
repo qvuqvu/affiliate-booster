@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Header from './components/Header.tsx';
 import InputForm from './components/InputForm.tsx';
 import OutputDisplay from './components/OutputDisplay.tsx';
@@ -11,6 +11,7 @@ const App: React.FC = () => {
     const [progressMessage, setProgressMessage] = useState<string | null>(null);
     const [batchResults, setBatchResults] = useState<BatchResult[] | null>(null);
     const [lastSubmittedPlatform, setLastSubmittedPlatform] = useState<PlatformOption | null>(null);
+    const shouldStopRef = useRef(false);
 
     const handleSubmit = async (products: ProductInput[], tones: ToneOption[], shouldGenerateImage: boolean, platform: PlatformOption, temperature: number) => {
         setIsLoading(true);
@@ -18,15 +19,30 @@ const App: React.FC = () => {
         setBatchResults(null);
         setProgressMessage(null);
         setLastSubmittedPlatform(platform);
+        shouldStopRef.current = false;
         
         let results: BatchResult[] = [];
 
         for (let i = 0; i < products.length; i++) {
+            // Check if user requested to stop
+            if (shouldStopRef.current) {
+                setProgressMessage('⏸️ Đã dừng theo yêu cầu.');
+                setIsLoading(false);
+                return;
+            }
+
             const product = products[i];
             try {
                 // Step 1: Generate Text Content
                 setProgressMessage(`✍️ Đang viết nội dung cho "${product.name}" (${i + 1}/${products.length})...`);
-                const textContent = await generateViralThread(product.name, product.desc, product.link, product.isAffiliate, tones, platform, temperature);
+                const textContent = await generateViralThread(product, tones, platform, temperature);
+                
+                // Check again after async operation
+                if (shouldStopRef.current) {
+                    setProgressMessage('⏸️ Đã dừng theo yêu cầu.');
+                    setIsLoading(false);
+                    return;
+                }
                 
                 let finalContent = textContent;
 
@@ -36,6 +52,13 @@ const App: React.FC = () => {
                 
                 // Step 2: Generate Image if requested
                 if (shouldGenerateImage) {
+                    // Check before starting image generation
+                    if (shouldStopRef.current) {
+                        setProgressMessage('⏸️ Đã dừng theo yêu cầu.');
+                        setIsLoading(false);
+                        return;
+                    }
+                    
                     const imagePrompt = textContent[0]?.imagePrompt;
 
                     if (imagePrompt) {
@@ -49,11 +72,23 @@ const App: React.FC = () => {
                         setProgressMessage(`🎨 Đang vẽ hình ảnh cho "${product.name}" (${i + 1}/${products.length})...`);
                         const imageUrl = await generateImage(imagePrompt);
                         
-                        // Add image URL to the final content and remove loading state
-                        finalContent = textContent.map(template => ({ ...template, imageUrl, isImageLoading: false }));
+                        // Check again after image generation
+                        if (shouldStopRef.current) {
+                            setProgressMessage('⏸️ Đã dừng theo yêu cầu.');
+                            setIsLoading(false);
+                            return;
+                        }
+                        
+                        // Add image URL to the final content and remove loading state (null if quota exceeded)
+                        finalContent = textContent.map(template => ({ ...template, imageUrl: imageUrl || undefined, isImageLoading: false }));
                         
                         results = results.map(r => r.product.id === product.id ? { ...r, content: finalContent } : r);
                         setBatchResults([...results]);
+
+                        // Show warning if image generation was skipped due to quota
+                        if (!imageUrl) {
+                            console.warn(`⚠️ Image generation skipped for "${product.name}" due to API quota limit.`);
+                        }
 
                     } else {
                          console.warn(`No image prompt found for "${product.name}". Skipping image generation.`);
@@ -73,6 +108,10 @@ const App: React.FC = () => {
         setProgressMessage(null);
     };
 
+    const handleStop = () => {
+        shouldStopRef.current = true;
+    };
+
     return (
         <div className="flex flex-col h-full">
             <Header />
@@ -83,8 +122,17 @@ const App: React.FC = () => {
                             <h2 className="text-lg font-bold mb-4">Tùy chỉnh & Nhập liệu</h2>
                             <InputForm onSubmit={handleSubmit} isLoading={isLoading} />
                              {isLoading && progressMessage && (
-                                <div className="mt-4 text-center text-sm text-blue-600 dark:text-blue-400">
-                                    {progressMessage}
+                                <div className="mt-4 space-y-3">
+                                    <div className="text-center text-sm text-blue-600 dark:text-blue-400">
+                                        {progressMessage}
+                                    </div>
+                                    <button
+                                        onClick={handleStop}
+                                        className="w-full py-2 px-4 border border-red-500 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                    >
+                                        <i className="fa-solid fa-stop mr-2"></i>
+                                        Dừng lại
+                                    </button>
                                 </div>
                             )}
                         </div>

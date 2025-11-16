@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { BatchResult, Template, PlatformOption } from '../types.ts';
-import CopyButton from './CopyButton.tsx';
+import { BatchResult, Template, PlatformOption } from '../types';
+import CopyButton from './CopyButton';
 
 const getPlatformTitle = (platform: PlatformOption | null) => {
     switch (platform) {
@@ -141,23 +141,36 @@ const OutputDisplay: React.FC<{ content: BatchResult[] | null, platform: Platfor
     };
 
     const convertToCSV = () => {
-        const header = ['product_name', 'product_link', 'template_used', 'title', 'post_number', 'post_content', 'hashtags', 'cta_options', 'scheduling_suggestion', 'disclosure', 'image_url', 'image_prompt'];
+        const header = ['Text', 'Image URL', 'Tags', 'Posting Time'];
+        
+        const formatPostingTime = (suggestion: string): string => {
+            const matches = suggestion.match(/\d+/g);
+            if (matches && matches.length > 0) {
+                const hour = matches[0].padStart(2, '0');
+                return `2025-11-17 ${hour}:30`;
+            }
+            return '2025-11-17 17:30';
+        };
+
         const rows = content.flatMap(result =>
             result.content.flatMap(template =>
-                template.thread.map((post, index) => [
-                    `"${result.product.name.replace(/"/g, '""')}"`,
-                    `"${result.product.link}"`,
-                    `"${template.template_used.replace(/"/g, '""')}"`,
-                    `"${template.title.replace(/"/g, '""')}"`,
-                    index + 1,
-                    `"${post.replace(/"/g, '""')}"`,
-                    `"${template.hashtags.join(', ')}"`,
-                    `"${template.cta_options.join('; ')}"`,
-                    `"${template.scheduling_suggestion}"`,
-                    `"${template.disclosure}"`,
-                    `"${template.imageUrl || ''}"`,
-                    `"${(template.imagePrompt || '').replace(/"/g, '""')}"`
-                ].join(','))
+                template.thread.map(post => {
+                    const text = post;
+                    const imageUrl = template.imageUrl
+                        ? 'https://images.unsplash.com/photo-1435224654926-ecc9f7fa028c?q=80&w=1287&auto=format&fit=crop&ixlib-rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
+                        : '';
+                    const tags = template.hashtags.join(',');
+                    const postingTime = formatPostingTime(template.scheduling_suggestion);
+
+                    const escapeField = (field: string) => `"${(field || '').replace(/"/g, '""')}"`;
+                    
+                    return [
+                        escapeField(text),
+                        escapeField(imageUrl),
+                        escapeField(tags),
+                        escapeField(postingTime)
+                    ].join(',');
+                })
             )
         );
         return [header.join(','), ...rows].join('\n');

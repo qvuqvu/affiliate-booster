@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import type { ProductInput, ToneOption, PlatformOption } from '../types.ts';
-import { TONE_OPTIONS, PLATFORM_OPTIONS } from '../types.ts';
+import React, { useState, useRef } from 'react';
+import type { ProductInput, ToneOption, PlatformOption } from '../types';
+import { TONE_OPTIONS, PLATFORM_OPTIONS } from '../types';
 
 interface InputFormProps {
     onSubmit: (products: ProductInput[], tones: ToneOption[], shouldGenerateImage: boolean, platform: PlatformOption, temperature: number) => void;
@@ -8,21 +8,89 @@ interface InputFormProps {
 }
 
 const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
-    const [products, setProducts] = useState<ProductInput[]>([
-        { id: crypto.randomUUID(), name: '', desc: '', link: '', isAffiliate: true },
-    ]);
+    const [products, setProducts] = useState<ProductInput[]>([]);
     const [selectedTones, setSelectedTones] = useState<ToneOption[]>([]);
     const [shouldGenerateImage, setShouldGenerateImage] = useState(false);
     const [platform, setPlatform] = useState<PlatformOption>('Thread (Ngắn)');
     const [temperature, setTemperature] = useState(0.8);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleProductChange = (id: string, field: keyof Omit<ProductInput, 'id'>, value: string | boolean) => {
-        setProducts(products.map(p => p.id === id ? { ...p, [field]: value } : p));
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) {
+                alert("CSV không hợp lệ hoặc trống.");
+                return;
+            }
+            // const headers = lines[0].split(',').map(h => h.trim());
+
+            // Helper function to parse CSV line properly (handles quotes and commas)
+            const parseCSVLine = (line: string): string[] => {
+                const result: string[] = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            };
+
+            try {
+                const importedProducts: ProductInput[] = lines.slice(1).map((line) => {
+                    const data = parseCSVLine(line);
+                    console.log('data', data, data[8])
+                    return {
+                        id: crypto.randomUUID(),
+                        productId: data[0]?.trim() || '',
+                        name: data[1]?.trim() || '',
+                        price: data[2]?.trim() || '',
+                        revenue: data[3]?.trim() || '',
+                        shopName: data[4]?.trim() || '',
+                        commissionRate: data[5]?.trim() || '',
+                        commission: data[6]?.trim() || '0',
+                        productLink: data[7]?.trim() || '',
+                        discountLink: data[8]?.trim() || '',
+                    };
+                });
+
+                // Sort by commission (descending)
+                const sortedProducts = importedProducts.sort((a, b) => {
+                    // Handle Vietnamese currency format: ₫480 or ₫16.900
+                    // Remove currency symbol and dots (thousand separators), keep only numbers
+                    const commissionA = parseFloat(a.commission.replace(/[₫.]/g, '').replace(/[^0-9]/g, '')) || 0;
+                    const commissionB = parseFloat(b.commission.replace(/[₫.]/g, '').replace(/[^0-9]/g, '')) || 0;
+                    return commissionB - commissionA;
+                });
+                
+                setProducts(sortedProducts);
+
+            } catch (error) {
+                alert("Đã xảy ra lỗi khi đọc file CSV. Vui lòng kiểm tra định dạng file.");
+                console.error("CSV parsing error:", error);
+            }
+        };
+        reader.readAsText(file);
+        if (event.target) {
+            event.target.value = '';
+        }
     };
 
-    const addProduct = () => {
-        setProducts([...products, { id: crypto.randomUUID(), name: '', desc: '', link: '', isAffiliate: true }]);
-    };
 
     const removeProduct = (id: string) => {
         setProducts(products.filter(p => p.id !== id));
@@ -36,74 +104,58 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const validProducts = products.filter(p => p.name && p.desc && p.link);
-        if (validProducts.length === 0) {
-            alert('Vui lòng điền đầy đủ thông tin cho ít nhất một sản phẩm.');
+        if (products.length === 0) {
+            alert('Vui lòng import danh sách sản phẩm từ file CSV.');
             return;
         }
-        onSubmit(validProducts, selectedTones, shouldGenerateImage, platform, temperature);
+        onSubmit(products, selectedTones, shouldGenerateImage, platform, temperature);
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-8">
             {/* Product Input Section */}
-            <div className="space-y-6">
-                {products.map((product, index) => (
-                    <div key={product.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative">
-                        {products.length > 1 && (
-                            <button
-                                type="button"
-                                onClick={() => removeProduct(product.id)}
-                                className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
-                                aria-label="Xóa sản phẩm"
-                            >
-                                <i className="fa-solid fa-times"></i>
-                            </button>
-                        )}
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-slate-600 dark:text-slate-300">Sản phẩm #{index + 1}</h3>
-                             <input
-                                type="text"
-                                value={product.name}
-                                onChange={(e) => handleProductChange(product.id, 'name', e.target.value)}
-                                placeholder="Tên sản phẩm"
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
-                                required
-                            />
-                            <textarea
-                                value={product.desc}
-                                onChange={(e) => handleProductChange(product.id, 'desc', e.target.value)}
-                                placeholder="Mô tả ngắn gọn"
-                                rows={3}
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
-                                required
-                            />
-                            <input
-                                type="url"
-                                value={product.link}
-                                onChange={(e) => handleProductChange(product.id, 'link', e.target.value)}
-                                placeholder="Link Shopee (https://...)"
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
-                                required
-                            />
-                            <div className="flex items-center">
-                                <input
-                                    id={`isAffiliate-${product.id}`}
-                                    type="checkbox"
-                                    checked={product.isAffiliate}
-                                    onChange={(e) => handleProductChange(product.id, 'isAffiliate', e.target.checked)}
-                                    className="h-4 w-4 text-blue-600 rounded"
-                                />
-                                <label htmlFor={`isAffiliate-${product.id}`} className="ml-2 block text-sm">
-                                    Đây là link Affiliate
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                <button type="button" onClick={addProduct} className="w-full py-2 px-4 border border-dashed border-slate-400 dark:border-slate-500 rounded-md text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
-                    <i className="fa-solid fa-plus mr-2"></i>Thêm sản phẩm
-                </button>
+            <div className="space-y-4">
+                 <h3 className="text-base font-semibold mb-2">Nhập sản phẩm</h3>
+                 <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileImport}
+                    accept=".csv"
+                    className="hidden"
+                 />
+                 <button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()} 
+                    className="w-full py-2 px-4 border border-dashed border-slate-400 dark:border-slate-500 rounded-md text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                    <i className="fa-solid fa-file-csv mr-2"></i>Import sản phẩm từ CSV
+                 </button>
+                 
+                 {products.length > 0 && (
+                     <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Đã import {products.length} sản phẩm (sắp xếp theo hoa hồng giảm dần).
+                        </p>
+                        {products.map((product) => (
+                             <div key={product.id} className="flex items-center justify-between p-2 bg-slate-100 dark:bg-slate-700/50 rounded-md">
+                                 <div className="text-sm overflow-hidden whitespace-nowrap text-ellipsis mr-2">
+                                    <span className="font-semibold">{product.name}</span>
+                                    <span className="text-xs text-green-600 dark:text-green-400 ml-2 font-mono bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded">
+                                        <i className="fa-solid fa-sack-dollar fa-fw"></i> {product.commission}
+                                    </span>
+                                 </div>
+                                 <button
+                                     type="button"
+                                     onClick={() => removeProduct(product.id)}
+                                     className="h-6 w-6 text-red-500 hover:text-red-700 transition-colors flex-shrink-0"
+                                     aria-label="Xóa sản phẩm"
+                                 >
+                                    <i className="fa-solid fa-trash-can"></i>
+                                 </button>
+                             </div>
+                        ))}
+                     </div>
+                 )}
             </div>
             
             {/* Platform Selection Section */}

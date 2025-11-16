@@ -15,10 +15,15 @@ export type GeneratedContent = Template[];
 
 export interface ProductInput {
   id: string; // Unique ID for React keys
-  name: string;
-  desc: string;
-  link: string;
-  isAffiliate: boolean;
+  productId: string;
+  name:string;
+  price: string;
+  revenue: string;
+  shopName: string;
+  commissionRate: string;
+  commission: string;
+  productLink: string;
+  discountLink: string;
 }
 
 export interface BatchResult {
@@ -37,6 +42,7 @@ export const TONE_OPTIONS = [
   'Tiết Kiệm Tối Đa',
   'Nâng Cấp Cuộc Sống',
   'Hỏi & Đáp (Q&A)',
+  'Drama Gia Đình/Công Sở',
 ] as const;
 
 export type ToneOption = typeof TONE_OPTIONS[number];

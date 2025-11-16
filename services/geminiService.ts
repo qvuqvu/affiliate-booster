@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { GeneratedContent, PlatformOption } from '../types.ts';
+import { GeneratedContent, PlatformOption, ProductInput } from '../types';
 
 const getResponseSchema = () => ({
   type: Type.ARRAY,
@@ -22,7 +22,7 @@ const getResponseSchema = () => ({
         description: 'Mảng gồm 3 biến thể lời gọi hành động (CTA).',
         items: { type: Type.STRING }
       },
-      disclosure: { type: Type.STRING, description: 'Lời tiết lộ affiliate, ví dụ: "QC", "#Ad". Trả về chuỗi rỗng nếu không phải affiliate.' },
+      disclosure: { type: Type.STRING, description: 'Lời tiết lộ affiliate, ví dụ: "QC", "#Ad".' },
       scheduling_suggestion: { type: Type.STRING, description: 'Gợi ý giờ đăng bài tại Việt Nam (ví dụ: "Buổi trưa (11h-13h) hoặc buổi tối (20h-22h)").' },
       template_used: { type: Type.STRING, description: 'Tên hoặc mô tả ngắn gọn về template/cách tiếp cận đã sử dụng (ví dụ: "Template kể chuyện cá nhân", "Template dạng review chi tiết").' },
       imagePrompt: { type: Type.STRING, description: 'Một câu mô tả ngắn gọn, súc tích (khoảng 15-25 từ, BẮT BUỘC bằng tiếng Anh) để tạo hình ảnh minh họa cho SẢN PHẨM. Prompt này phải thật giàu hình ảnh, tập trung vào sản phẩm trong một bối cảnh hấp dẫn, phù hợp cho mạng xã hội. Ví dụ: "A vibrant, professional product shot of a minimalist white ceramic teapot on a clean, light gray background, with soft, natural lighting."' }
@@ -45,42 +45,53 @@ const getPlatformInstruction = (platform: PlatformOption) => {
 };
 
 
-const buildPrompt = (productName: string, productDesc: string, shopeeLink: string, isAffiliate: boolean, tones: string[], platform: PlatformOption) => {
+const buildPrompt = (product: ProductInput, tones: string[], platform: PlatformOption) => {
+  const { name, price, shopName, commission, discountLink } = product;
+
   const toneInstruction = tones.length > 0
     ? `Hãy ưu tiên sử dụng các góc nhìn/phong cách sau đây cho 3 phiên bản: ${tones.join(', ')}.`
     : 'Hãy tự do sáng tạo 3 phiên bản với 3 góc nhìn/phong cách độc đáo khác nhau.';
   
   const platformInstruction = getPlatformInstruction(platform);
 
-  return `
-    Bạn là một trợ lý viết nội dung viral chuyên cho thị trường Việt Nam, chuyên tạo nội dung cho mạng xã hội nhằm mục tiêu affiliate.
-    
-    Vui lòng tạo nội dung viral cho sản phẩm sau đây:
-    - Tên sản phẩm: ${productName}
-    - Mô tả: ${productDesc}
-    - Link Shopee: ${shopeeLink}
-    - Đây là link affiliate: ${isAffiliate ? 'Có' : 'Không'}
-    - Nền tảng mong muốn: ${platform}
+  const productContext = `
+- Tên sản phẩm: ${name}
+- Giá bán: ${price}
+- Cửa hàng: ${shopName}
+- Hoa hồng nhận được: ${commission}`;
 
-    Yêu cầu BẮT BUỘC:
-    1.  Tạo ra chính xác 3 phiên bản nội dung khác nhau. ${toneInstruction}
+  return `
+    Bạn là một chuyên gia affiliate marketing, chuyên tạo nội dung viral cho thị trường Việt Nam.
+
+    **Nhiệm vụ:** Viết 3 phiên bản nội dung cho sản phẩm bên dưới để đăng lên nền tảng ${platform}.
+
+    **Bối cảnh sản phẩm:**
+    ${productContext}
+
+    **YÊU CẦU QUAN TRỌNG NHẤT (TUYỆT ĐỐI KHÔNG LÀM SAI):**
+    Khi cần chèn link mua hàng hoặc link ưu đãi vào bài viết, bạn BẮT BUỘC PHẢI sử dụng chính xác chuỗi ký tự sau. KHÔNG được thay thế, rút gọn, hay diễn giải nó bằng bất kỳ thông tin nào khác.
+    >>> ${discountLink} <<<
+
+    **Các yêu cầu khác:**
+    1.  Tạo ra chính xác 3 phiên bản nội dung độc đáo. ${toneInstruction}
     2.  Định dạng nội dung: ${platformInstruction}
-    3.  Giọng điệu: Thân thiện, gần gũi như một người bạn chia sẻ, ngắn gọn, gây tò mò. Dùng emoji thông minh, có chọn lọc. Kết hợp số liệu hoặc micro-story (câu chuyện nhỏ) để tăng tính thuyết phục.
-    4.  Nếu là link affiliate, BẮT BUỘC phải thêm lời tiết lộ rõ ràng và minh bạch. Ví dụ: "#QC", "#Ad", "(Link affiliate)".
-    5.  Tuyệt đối không đưa ra các tuyên bố về y tế/sức khỏe hoặc tài chính/kinh tế không có căn cứ. Tránh các từ ngữ bị cấm hoặc nhạy cảm.
-    6.  Cung cấp thêm metadata cho mỗi phiên bản: title, 5-8 hashtags, 3 biến thể CTA, và gợi ý giờ đăng ở Việt Nam.
-    7.  BẮT BUỘC cung cấp một 'imagePrompt' (bằng tiếng Anh) để tạo ảnh. Prompt này phải chung cho cả 3 phiên bản.
-    8.  Trả kết quả dưới dạng một mảng JSON tuân thủ schema đã cung cấp.
+    3.  Giọng điệu: Thân thiện, gần gũi như một người bạn chia sẻ, ngắn gọn, gây tò mò. Dùng emoji thông minh, có chọn lọc.
+    4.  Nhấn mạnh vào lợi ích, giá trị sản phẩm mang lại cho người dùng và sự uy tín của cửa hàng.
+    5.  BẮT BUỘC phải thêm lời tiết lộ affiliate rõ ràng (ví dụ: "#QC", "#tiepthilienket", "#Ad").
+    6.  Tuyệt đối không đưa ra các tuyên bố về y tế/sức khỏe hoặc tài chính/kinh tế không có căn cứ. Tránh các từ ngữ bị cấm hoặc nhạy cảm.
+    7.  Cung cấp thêm metadata cho mỗi phiên bản: title, 5-8 hashtags, 3 biến thể CTA, và gợi ý giờ đăng ở Việt Nam.
+    8.  BẮT BUỘC cung cấp một 'imagePrompt' (bằng tiếng Anh) để tạo ảnh. Prompt này phải chung cho cả 3 phiên bản và tập trung vào sản phẩm.
+    9.  Trả kết quả dưới dạng một mảng JSON tuân thủ schema đã cung cấp.
     `;
 };
 
-export const generateViralThread = async (productName: string, productDesc: string, shopeeLink: string, isAffiliate: boolean, tones: string[], platform: PlatformOption, temperature: number): Promise<GeneratedContent> => {
+export const generateViralThread = async (product: ProductInput, tones: string[], platform: PlatformOption, temperature: number): Promise<GeneratedContent> => {
     if (!process.env.API_KEY) {
         throw new Error("API_KEY is not set in environment variables.");
     }
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = buildPrompt(productName, productDesc, shopeeLink, isAffiliate, tones, platform);
+    const prompt = buildPrompt(product, tones, platform);
     const schema = getResponseSchema();
     
     try {
@@ -102,8 +113,20 @@ export const generateViralThread = async (productName: string, productDesc: stri
         }
 
         const firstItem = parsedJson[0];
-        if (!firstItem.title || !Array.isArray(firstItem.thread) || firstItem.thread.length === 0) {
-            throw new Error("The data structure from API is not as expected.");
+        if (!firstItem) {
+            throw new Error("API returned an empty first item.");
+        }
+        if (!firstItem.title) {
+            throw new Error("Missing 'title' in API response.");
+        }
+        if (!firstItem.thread) {
+            throw new Error("Missing 'thread' in API response.");
+        }
+        if (!Array.isArray(firstItem.thread)) {
+            throw new Error("'thread' is not an array in API response.");
+        }
+        if (firstItem.thread.length === 0) {
+            throw new Error("'thread' array is empty in API response.");
         }
         
         return parsedJson as GeneratedContent;
